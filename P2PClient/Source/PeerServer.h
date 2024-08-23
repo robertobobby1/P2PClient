@@ -14,17 +14,13 @@ namespace PeerServer {
     inline ExternalServerState externalServerState = NONE;
     inline std::shared_ptr<R::Net::Server> server;
 
-    inline const int MAX_SERVER_STARTUP_RETRIES = 5;
-    inline const int DEFAULT_PORT = 22000;
-    inline const int BACKLOG = 10;
-
-    void run() {
-        server = R::Net::Server::makeAndRun(DEFAULT_PORT, BACKLOG);
-        for (int i = 1; i < MAX_SERVER_STARTUP_RETRIES; i++) {
+    inline void run(int port = 22000, int backlog = 10, int maxServerStartupRetries = 5) {
+        server = R::Net::Server::makeAndRun(port, backlog);
+        for (int i = 1; i < maxServerStartupRetries; i++) {
             if (!server->isRunning) {
-                printf("[Peer Server] Retrying to start the server... ");
+                printf("[Peer Server] Retrying to start the server...\n");
 
-                auto temp = R::Net::Server::makeAndRun(rand(), BACKLOG);
+                auto temp = R::Net::Server::makeAndRun(rand(), backlog);
                 server.swap(temp);
             } else {
                 break;
@@ -47,7 +43,7 @@ namespace PeerServer {
                 if (buffer.size < 0) {
                     openConexion = false;
                 } else {
-                    printf("[Peer Server] size: %i, message: %s \n", buffer.size, buffer.ini.get());
+                    printf("[Peer Server] size: %i, message: %s \n", (int)buffer.size, buffer.ini);
                 }
             }
         }

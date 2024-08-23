@@ -8,7 +8,7 @@ workspace "Server"
 		"Dist"
 	}
 
-	project "Server"
+	project "P2PClient"
 		kind "ConsoleApp"
 		language "C++"
 		cppdialect "C++20"
@@ -20,7 +20,7 @@ workspace "Server"
 		{
 			"%{wks.location}/P2PClient/Source/**.h",
 			"%{wks.location}/P2PClient/Source/**.cpp",
-		}
+		}  
 		includedirs
 		{
 			"%{wks.location}/P2PClient/Source",
