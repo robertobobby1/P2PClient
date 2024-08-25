@@ -5,7 +5,7 @@
 
 namespace PeerClient {
     inline const int SECURITY_HEADER_LENGTH = 23;
-    inline const char* SECURITY_HEADER = "0sdFGeVi3ItN1qwsHp3mcD";
+    inline const char* SECURITY_HEADER = "0sdFGeVi3ItN1qwsHp3mcDF";
 
     inline std::shared_ptr<R::Net::Client> client;
 
@@ -26,6 +26,7 @@ namespace PeerClient {
                 R::Utils::setFlag(headerFlags, ClientServerHeaderFlags_Bit2);
                 break;
             case ActionType::PeerConnectSuccess:  // 00
+                break;
         }
 
         return headerFlags;
@@ -44,6 +45,9 @@ namespace PeerClient {
         buffer.write(SECURITY_HEADER, SECURITY_HEADER_LENGTH);
         buffer.write(headerFlags);
         client->sendMessage(buffer);
+
+        auto readBuffer = client->readMessage();
+        R::Utils::hexDump(readBuffer);
     };
 
     inline void terminate() {
