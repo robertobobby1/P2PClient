@@ -2,5 +2,4 @@
 
 int main() {
     P2PClient::init();
-    P2PClient::wait();
 }
