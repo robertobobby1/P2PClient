@@ -36,10 +36,13 @@ namespace PeerClient {
         peerInformation = payload;
         payload.Print();
 
-        // wait for delay time and then connect
+        // TODO wait for delay time and then connect
         auto client = R::Net::Client::makeAndRun(inet_ntoa(peerInformation.ipAddress), peerInformation.port);
+        auto peerMessageBuffer = Rp2p::createClientPeerMessageBuffer();
+        client->sendMessage(peerMessageBuffer);
+
         Shared::peerClientSocket = client->_socket;
-        RLog("Notifying from peer client");
+        RLog("Notifying from peer client\n");
         Shared::isPeerClientSocketConnected.notify_all();
     }
 
@@ -59,10 +62,6 @@ namespace PeerClient {
             auto buffer = client->readMessage();
             if (!Rp2p::isValidAuthedRequest(buffer)) {
                 RLog("[Peer Client] Bad protocol!\n");
-                if (++counter > 200) {
-                    terminate();
-                    return;
-                }
                 continue;
             }
 

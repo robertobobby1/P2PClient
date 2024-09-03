@@ -40,7 +40,7 @@ namespace PeerServer {
     }
 
     inline void waitForOtherPeer() {
-        auto AcceptSocket = server->acceptNewConnection();
+        auto AcceptSocket = server->acceptNewConnection().socket;
         if (AcceptSocket == SocketError) {
             return;
         }
@@ -49,10 +49,16 @@ namespace PeerServer {
         while (openConexion) {
             auto buffer = server->readMessage(AcceptSocket);
             // error, couldn't correctly read
-            if (buffer.size >= 0) {
+            if (buffer.size > 0) {
+                if (!Rp2p::isValidAuthedRequest(buffer)) {
+                    RLog("[Peer Server] Bad Protocol!\n");
+                    return;
+                }
+
                 auto protocolHeader = Rp2p::getProtocolHeader(buffer);
                 if (Rp2p::getClientClientProtocolHeader(protocolHeader) != Rp2p::ClientClientActionType::PeerMessage) {
-                    continue;
+                    RLog("[Peer Server] Not a Peer message!\n");
+                    return;
                 }
 
                 Shared::peerServerSocket = AcceptSocket;
