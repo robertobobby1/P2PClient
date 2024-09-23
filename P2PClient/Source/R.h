@@ -4010,7 +4010,7 @@ namespace R::Net {
 #    define SocketError -1
 #elif defined(PLATFORM_WINDOWS)
     typedef SOCKET Socket;
-#    define readSocket(socketValue, buffer, bufferSize) _read(socketValue, buffer, bufferSize)
+#    define readSocket(socketValue, buffer, bufferSize) recv(socketValue, buffer, bufferSize, 0)
 #    define SocketError INVALID_SOCKET
 #endif
 
