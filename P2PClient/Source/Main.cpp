@@ -21,7 +21,7 @@ int runOne() {
         buffer.write(message.c_str(), message.length());
 
         P2PClient::sendMessage(buffer);
-        sleep(50);
+        R::Utils::sleepThread(R::Time::Seconds(50));
     }
 }
 

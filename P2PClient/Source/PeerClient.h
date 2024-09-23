@@ -40,7 +40,10 @@ namespace PeerClient {
         payload.Print();
 
         // TODO wait for delay time and then connect
-        auto client = R::Net::Client::makeAndRun(inet_ntoa(peerInformation.ipAddress), peerInformation.port);
+        char ipBuffer[INET_ADDRSTRLEN]{0};
+        auto client = R::Net::Client::makeAndRun(
+            inet_ntop(AF_INET, &peerInformation.ipAddress, ipBuffer, INET_ADDRSTRLEN), peerInformation.port
+        );
         auto peerMessageBuffer = Rp2p::createClientPeerMessageBuffer();
         client->sendMessage(peerMessageBuffer);
 
