@@ -3963,7 +3963,7 @@ namespace R::Utils {
         signal(SIGPIPE, SIG_IGN);
     }
 
-    void makeXChildren(int childProcesses) {
+    inline void makeXChildren(int childProcesses) {
         pid_t pid = 1;
         for (auto i = 0; i < childProcesses; i++) {
             if (pid > 0) {
@@ -4209,6 +4209,7 @@ namespace R::Net {
 
             RLog("[Client] Connected to hostname %s and port %i\n", hostname, port);
             isRunning = true;
+            _socket = ConnectSocket;
             return true;
         }
 
@@ -4219,7 +4220,7 @@ namespace R::Net {
             onError(_socket, true, "[Client] Closing the client socket!");
         }
 
-        inline int sendMessage(Buffer buff) {
+        inline int sendMessage(Buffer &buff) {
             auto sendResponse = Net::sendMessage(_socket, buff, "[Client] Couldn't send message");
             if (sendResponse == -1) {
                 isRunning = false;
@@ -4741,7 +4742,7 @@ namespace R::Net {
             return setServerNonBlockingMode(_socket);
         }
 
-        inline int sendMessage(Socket socket, Buffer buff) {
+        inline int sendMessage(Socket socket, Buffer &buff) {
             return Net::sendMessage(socket, buff, "[Server] Couldn't send message");
         }
 
