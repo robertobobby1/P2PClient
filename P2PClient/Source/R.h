@@ -4006,11 +4006,11 @@ namespace R::Net {
 
 #if defined(PLATFORM_MACOS) || defined(PLATFORM_LINUX)
     typedef int Socket;
-#    define readSocket(socket, buffer, bufferSize) read(socket, buffer, bufferSize)
+#    define readSocket(socketValue, buffer, bufferSize) read(socketValue, buffer, bufferSize)
 #    define SocketError -1
 #elif defined(PLATFORM_WINDOWS)
     typedef SOCKET Socket;
-#    define readSocket(socket, buffer, bufferSize) _read(socket, buffer, bufferSize)
+#    define readSocket(socketValue, buffer, bufferSize) _read(socketValue, buffer, bufferSize)
 #    define SocketError INVALID_SOCKET
 #endif
 
