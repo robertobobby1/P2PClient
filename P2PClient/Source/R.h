@@ -1813,7 +1813,7 @@ namespace pcg_extras {
     auto bounded_rand(RngType& rng, typename RngType::result_type upper_bound)
         -> typename RngType::result_type {
         typedef typename RngType::result_type rtype;
-        rtype threshold = (RngType::max() - RngType::min() + rtype(1) - upper_bound) % upper_bound;
+        rtype threshold = (RngType::Max() - RngType::min() + rtype(1) - upper_bound) % upper_bound;
         for (;;) {
             rtype r = rng() - RngType::min();
             if (r >= threshold)
@@ -1867,9 +1867,9 @@ namespace pcg_extras {
         }
 
         constexpr size_t size() const {
-            return (sizeof(typename RngType::result_type) > sizeof(result_type) && RngType::max() > ~size_t(0UL))
+            return (sizeof(typename RngType::result_type) > sizeof(result_type) && RngType::Max() > ~size_t(0UL))
                        ? ~size_t(0UL)
-                       : size_t(RngType::max());
+                       : size_t(RngType::Max());
         }
     };
 
@@ -2194,7 +2194,7 @@ namespace pcg_detail {
             return result_type(0UL);
         }
 
-        static constexpr result_type max() {
+        static constexpr result_type Max() {
             return result_type(~result_type(0UL));
         }
 
@@ -3955,14 +3955,6 @@ namespace R::Utils {
         signal(SIGPIPE, SIG_IGN);
     }
 
-#elif defined(PLATFORM_WINDOWS)
-
-    // make it multipplatform but useless
-    inline void stackTracing() {}
-    inline void avoidSigPipe() {}
-
-#endif
-
     void makeXChildren(int childProcesses) {
         pid_t pid = 1;
         for (auto i = 0; i < childProcesses; i++) {
@@ -3971,6 +3963,15 @@ namespace R::Utils {
             }
         }
     }
+
+#elif defined(PLATFORM_WINDOWS)
+
+    // make it multipplatform but useless
+    inline void stackTracing() {}
+    inline void avoidSigPipe() {}
+    void makeXChildren(int childProcesses) {}
+
+#endif
 
     inline void hexDump(Buffer buffer) {
         unsigned char *buf = (unsigned char *)buffer.ini;
