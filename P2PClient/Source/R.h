@@ -1366,6 +1366,14 @@ namespace pcg_extras {
 #    define PCG_NOINLINE
 #endif
 
+#ifdef max
+#    undef max
+#endif
+
+#ifdef min
+#    undef min
+#endif
+
 /*
  * Some members of the PCG library use 128-bit math.  When compiling on 64-bit
  * platforms, both GCC and Clang provide 128-bit integer types that are ideal
@@ -1813,9 +1821,9 @@ namespace pcg_extras {
     auto bounded_rand(RngType& rng, typename RngType::result_type upper_bound)
         -> typename RngType::result_type {
         typedef typename RngType::result_type rtype;
-        rtype threshold = (RngType::Max() - RngType::Min() + rtype(1) - upper_bound) % upper_bound;
+        rtype threshold = (RngType::max() - RngType::min() + rtype(1) - upper_bound) % upper_bound;
         for (;;) {
-            rtype r = rng() - RngType::Min();
+            rtype r = rng() - RngType::min();
             if (r >= threshold)
                 return r % upper_bound;
         }
@@ -1867,9 +1875,9 @@ namespace pcg_extras {
         }
 
         constexpr size_t size() const {
-            return (sizeof(typename RngType::result_type) > sizeof(result_type) && RngType::Max() > ~size_t(0UL))
+            return (sizeof(typename RngType::result_type) > sizeof(result_type) && RngType::max() > ~size_t(0UL))
                        ? ~size_t(0UL)
-                       : size_t(RngType::Max());
+                       : size_t(RngType::max());
         }
     };
 
@@ -2190,11 +2198,11 @@ namespace pcg_detail {
         // It would be nice to use std::numeric_limits for these, but
         // we can't be sure that it'd be defined for the 128-bit types.
 
-        static constexpr result_type Min() {
+        static constexpr result_type min() {
             return result_type(0UL);
         }
 
-        static constexpr result_type Max() {
+        static constexpr result_type max() {
             return result_type(~result_type(0UL));
         }
 
