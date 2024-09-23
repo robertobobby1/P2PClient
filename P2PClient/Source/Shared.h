@@ -3,6 +3,7 @@
 #include "R.h"
 
 namespace Rp2p = R::Net::P2P;
+namespace Rt = R::Time;
 
 namespace Shared {
     inline std::atomic<bool> isPeerClientSocketConnected{false};
