@@ -1813,9 +1813,9 @@ namespace pcg_extras {
     auto bounded_rand(RngType& rng, typename RngType::result_type upper_bound)
         -> typename RngType::result_type {
         typedef typename RngType::result_type rtype;
-        rtype threshold = (RngType::Max() - RngType::min() + rtype(1) - upper_bound) % upper_bound;
+        rtype threshold = (RngType::Max() - RngType::Min() + rtype(1) - upper_bound) % upper_bound;
         for (;;) {
-            rtype r = rng() - RngType::min();
+            rtype r = rng() - RngType::Min();
             if (r >= threshold)
                 return r % upper_bound;
         }
@@ -2190,7 +2190,7 @@ namespace pcg_detail {
         // It would be nice to use std::numeric_limits for these, but
         // we can't be sure that it'd be defined for the 128-bit types.
 
-        static constexpr result_type min() {
+        static constexpr result_type Min() {
             return result_type(0UL);
         }
 
