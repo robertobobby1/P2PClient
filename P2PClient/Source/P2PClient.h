@@ -9,7 +9,7 @@
 #include "Shared.h"
 
 namespace P2PClient {
-    inline const char* EXTERNAL_SERVER_IP = "localhost";
+    inline const char* EXTERNAL_SERVER_IP = "34.79.56.79";
     inline int EXTERNAL_SERVER_PORT = 3000;
 
     inline int BACKLOG = 10;
