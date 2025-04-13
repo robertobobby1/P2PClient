@@ -9,8 +9,8 @@
 #include "Shared.h"
 
 namespace P2PClient {
-    inline const char* EXTERNAL_SERVER_IP = "34.79.56.79";
-    inline int EXTERNAL_SERVER_PORT = 3000;
+    inline const char* EXTERNAL_SERVER_IP = "4.tcp.eu.ngrok.io";
+    inline int EXTERNAL_SERVER_PORT = 15423;
 
     inline int BACKLOG = 10;
     inline const int MAX_SERVER_STARTUP_RETRIES = 5;

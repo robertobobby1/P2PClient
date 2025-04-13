@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <cstdint>
 #include <queue>
 #include <mutex>
@@ -4748,3 +4749,309 @@ namespace R::Net {
     };
 
 }  // namespace R::Net
+
+
+namespace Rp2p = R::Net::P2P;
+namespace Rt = R::Time;
+
+namespace Shared {
+    inline std::atomic<bool> isPeerClientSocketConnected{false};
+    inline std::atomic<bool> isPeerServerSocketConnected{false};
+
+    inline R::Net::Socket peerClientSocket;
+    inline R::Net::Socket peerServerSocket;
+}  // namespace Shared
+
+#include <iostream>
+#include <atomic>
+
+namespace PeerServer {
+
+    enum ExternalServerState {
+        NONE,
+        ACCESIBLE,
+        UNACCESIBLE
+    };
+
+    inline ExternalServerState externalServerState = NONE;
+    inline std::shared_ptr<R::Net::Server> server;
+
+    inline std::atomic<bool> isPortAvailable{false};
+    inline uint16_t runningPort;
+
+    inline void start(int backlog = 10, int maxServerStartupRetries = 5) {
+        auto port = R::Utils::randomNumber(100, 65535);
+        server = R::Net::Server::makeAndRun(port, backlog);
+
+        for (int i = 1; i < maxServerStartupRetries; i++) {
+            if (!server->isRunning) {
+                printf("[Peer Server] Retrying to start the server...\n");
+
+                port = R::Utils::randomNumber(100, 65535);
+                auto temp = R::Net::Server::makeAndRun(port, backlog);
+                server.swap(temp);
+            } else {
+                runningPort = port;
+                isPortAvailable = true;
+                isPortAvailable.notify_all();
+                break;
+            }
+        }
+    }
+
+    inline void waitForOtherPeer() {
+        auto AcceptSocket = server->acceptNewConnection().socket;
+        if (AcceptSocket == SocketError) {
+            return;
+        }
+
+        bool keepLooping = true;
+        while (keepLooping) {
+            auto buffer = server->readMessage(AcceptSocket);
+            // error, couldn't correctly read
+            if (buffer.size <= 0) {
+                keepLooping = false;
+                return;
+            }
+
+            if (!Rp2p::isValidAuthedRequest(buffer)) {
+                RLog("[Peer Server] Bad Protocol!\n");
+                return;
+            }
+
+            auto protocolHeader = Rp2p::getProtocolHeader(buffer);
+            if (Rp2p::getClientClientProtocolHeader(protocolHeader) != Rp2p::ClientClientActionType::PeerMessage) {
+                RLog("[Peer Server] Not a Peer message!\n");
+                return;
+            }
+
+            Shared::peerServerSocket = AcceptSocket;
+            Shared::isPeerServerSocketConnected = true;
+            Shared::isPeerServerSocketConnected.notify_all();
+
+            keepLooping = false;
+        }
+    };
+
+    inline void run(int backlog = 10, int maxServerStartupRetries = 5) {
+        srand((unsigned)time(NULL));
+        start(backlog, maxServerStartupRetries);
+
+        waitForOtherPeer();
+    };
+
+    inline void terminate() {
+        server->terminate();
+    };
+
+}  // namespace PeerServer
+
+namespace PeerClient {
+    inline const int SELECT_TIMEOUT_SECONDS = 2;
+
+    inline Rp2p::ServerConnectPayload peerInformation;
+    inline std::shared_ptr<R::Net::Client> client;
+
+    inline bool keepLooping = true;
+    inline std::string _uuid = "";
+
+    inline void terminate() {
+        client->terminate();
+    }
+
+    inline void handleSendUUIDRequest(R::Buffer& buffer) {
+        auto uuid = Rp2p::getUUIDFromSendUUIDBuffer(buffer);
+        if (uuid == "") {
+            RLog("[Peer Client] Unexpected package, expecting a uuid with this response\n");
+            return;
+        }
+
+        RLog("[Peer Client] Connected to lobby with uuid: %s\n", uuid.c_str());
+        _uuid = uuid;
+    }
+
+    inline void handleConnectRequest(R::Buffer& buffer) {
+        auto payload = Rp2p::getPayloadFromServerConnectBuffer(buffer);
+        // error scenario
+        if (payload.port == 0) {
+            RLog("[Peer Client] Unexpected package, expecting another peer's information package\n");
+            return;
+        }
+
+        peerInformation = payload;
+        payload.Print();
+
+        // TODO wait for delay time and then connect
+        char ipBuffer[INET_ADDRSTRLEN]{0};
+        auto client = R::Net::Client::makeAndRun(
+            inet_ntop(AF_INET, &peerInformation.ipAddress, ipBuffer, INET_ADDRSTRLEN), peerInformation.port
+        );
+        auto peerMessageBuffer = Rp2p::createClientPeerMessageBuffer();
+        client->sendMessage(peerMessageBuffer);
+
+        Shared::peerClientSocket = client->_socket;
+        Shared::isPeerClientSocketConnected = true;
+        Shared::isPeerClientSocketConnected.notify_all();
+    }
+
+    inline void tryConnect(const char* hostname, int port) {
+        timeval selectTimeout{SELECT_TIMEOUT_SECONDS, 0};
+        fd_set socketFdSet;
+
+        client = R::Net::Client::makeAndRun(hostname, port);
+        if (!client->isRunning) {
+            RLog("[Peer Client] Couldn't access the remote server\n");
+            return;
+        }
+
+        FD_ZERO(&socketFdSet);
+        FD_SET(client->_socket, &socketFdSet);
+
+        auto sendBuffer = Rp2p::createClientPublicConnectBuffer(PeerServer::runningPort);
+        client->sendMessage(sendBuffer);
+
+        // no keep alive message in 10 seconds means the server disconnected
+        Rt::Timer keepAliveTimer(Rt::Seconds(10));
+
+        while (client->isRunning && keepLooping) {
+            auto tempFdSet = socketFdSet;
+
+            auto selectResponse = select(FD_SETSIZE, &tempFdSet, NULL, NULL, &selectTimeout);
+            if (selectResponse < 0) {
+                R::Net::onError(client->_socket, true, "[Logic Server] Error during select");
+                client->isRunning = false;
+                continue;
+            }
+
+            // timeout
+            if (selectResponse == 0) {
+                if (keepAliveTimer.isTimerFinished()) {
+                    client->terminate();
+                }
+
+                continue;
+            }
+
+            auto buffer = client->readMessage();
+            if (buffer.size == 0) {
+                RLog("[Peer Client] End of file, server closed socket!\n");
+                client->terminate();
+                continue;
+            }
+
+            if (!Rp2p::isValidAuthedRequest(buffer)) {
+                RLog("[Peer Client] Bad protocol!\n");
+                client->terminate();
+                continue;
+            }
+
+            if (Rp2p::KeepAliveManager::isKeepAlivePackage(buffer)) {
+                keepAliveTimer.resetTimer();
+                RLog("[Peer Client] Keep alive package\n");
+                continue;
+            }
+
+            auto protocolHeader = Rp2p::getProtocolHeader(buffer);
+            auto actionType = Rp2p::getServerActionTypeFromHeaderByte(protocolHeader);
+            switch (actionType) {
+                case Rp2p::ServerActionType::SendUUID:
+                    handleSendUUIDRequest(buffer);
+                    break;
+                case Rp2p::ServerActionType::Connect:
+                    handleConnectRequest(buffer);
+                    break;
+            }
+        }
+    }
+
+    inline void run(const char* hostname, int port) {
+        PeerServer::isPortAvailable.wait(false);
+        // retry until we connect with another peer
+        while (keepLooping) {
+            tryConnect(hostname, port);
+            RLog("[Peer Client] The server probably disconnected, retrying!\n");
+            std::this_thread::sleep_for(Rt::Seconds(R::Utils::randomNumber(1, 7)));
+        }
+    }
+
+    inline void sendPeersConnectSuccess() {
+        auto buffer = Rp2p::createClientPeersConnectSuccessBuffer();
+
+        client->sendMessage(buffer);
+    }
+
+}  // namespace PeerClient
+
+
+
+#include <thread>
+
+namespace P2PClient {
+    inline const char* EXTERNAL_SERVER_IP = "4.tcp.eu.ngrok.io";
+    inline int EXTERNAL_SERVER_PORT = 15423;
+
+    inline int BACKLOG = 10;
+    inline const int MAX_SERVER_STARTUP_RETRIES = 5;
+
+    inline std::thread messageReaderThread;
+    inline std::shared_ptr<R::Net::Client> p2pClient;
+
+    inline std::function<void(R::Buffer&)> onNewMessageCallback = nullptr;
+    inline std::mutex sendMessageMutex;
+    inline std::condition_variable sendMessageCondition;
+
+    inline void startMessageReaderThread() {
+        // reading message
+        messageReaderThread = std::thread([]() {
+            R::Buffer buffer(255);
+            while (p2pClient->isRunning) {
+                buffer = p2pClient->readMessage();
+                if (buffer.size <= 0) {
+                    // other peer closed connection
+                    continue;
+                }
+
+                if (onNewMessageCallback != nullptr) {
+                    onNewMessageCallback(buffer);
+                }
+            }
+        });
+    }
+
+    inline void init() {
+        auto serverThread = std::thread(PeerServer::run, BACKLOG, MAX_SERVER_STARTUP_RETRIES);
+        auto clientThread = std::thread(PeerClient::run, EXTERNAL_SERVER_IP, EXTERNAL_SERVER_PORT);
+
+        Shared::isPeerServerSocketConnected.wait(false);
+        Shared::isPeerClientSocketConnected.wait(false);
+
+        // let the server know that it has been a succesfull connection
+        PeerClient::sendPeersConnectSuccess();
+        PeerClient::keepLooping = false;
+
+        // choose which server to keep by port, the bigger one will be the client we will keep,
+        // the other peer has the same information, the only problem would be if they are the same port, very strange
+
+        if (PeerClient::peerInformation.port > PeerServer::runningPort) {
+            p2pClient = R::Net::Client::makeAndSet(Shared::peerClientSocket);
+            PeerServer::terminate();
+        } else {
+            p2pClient = R::Net::Client::makeAndSet(Shared::peerServerSocket);
+            PeerClient::terminate();
+        }
+
+        // make sure threads stopped working, now handle from here
+        serverThread.join();
+        clientThread.join();
+
+        startMessageReaderThread();
+    }
+
+    inline int sendMessage(R::Buffer& buffer) {
+        return p2pClient->sendMessage(buffer);
+    }
+
+    inline void setOnNewMessageCallback(std::function<void(R::Buffer&)> callback) {
+        onNewMessageCallback = callback;
+    }
+}  // namespace P2PClient
